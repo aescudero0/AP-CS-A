@@ -1,0 +1,74 @@
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ */
+
+package com.mycompany.cardgame1;
+
+/**
+ *
+ * @author andersonescudero
+ */
+import java.util.ArrayList;
+import java.util.Collections;
+public class CardGame1 {
+    public static void main(String[] args) {
+        // create the string array
+        String[][] deckOfCards = new String[4][13];
+       
+        // create the card values
+        String[] cardValues = {"Ace", "2", "3", "4", "5", "6", "7", "8", "9", "10", "Jack", "Queen", "King"};
+      
+         // create the suit names
+        String[] suits = {"Diamonds", "Hearts", "Clubs", "Spades"};
+       
+         // fill in the list of the cards
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 13; j++) {
+                deckOfCards[i][j] = cardValues[j] + " of " + suits[i];
+            }
+        }
+       
+         // put the cards into an array list and then shuffle them
+        ArrayList<String> shuffledDeck = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 13; j++) {
+                shuffledDeck.add(deckOfCards[i][j]);
+            }
+        }
+       
+         // shuffling the deck
+        Collections.shuffle(shuffledDeck);
+       
+         // seperate the cards and deal them
+        String[][] hands = new String[4][5];
+        int cardNum = 0;
+       
+         for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 5; j++) {
+                hands[i][j] = shuffledDeck.get(cardNum);
+                cardNum++;
+            }
+        }
+       
+         // print out the hands
+        System.out.println("Hand 1:");
+        for (int k = 0; k < 5; k++) {
+            System.out.println(hands[0][k]);
+        }
+       
+         System.out.println("\nHand 2:");
+        for (int m = 0; m < 5; m++) {
+            System.out.println(hands[1][m]);
+        }
+       
+         System.out.println("\nHand 3:");
+        for (int n = 0; n < 5; n++) {
+            System.out.println(hands[2][n]);        
+        }
+       
+         System.out.println("\nHand 4:");
+        for (int p = 0; p < 5; p++) {
+            System.out.println(hands[3][p]);
+        }
+    }
+}
