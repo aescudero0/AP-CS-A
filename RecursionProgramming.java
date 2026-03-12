@@ -23,6 +23,7 @@ public class RecursionProgramming {
         // print out the row # that was desired
         System.out.print("Row " + n + " is: ");
         for (int num : result) {
+            // print row
             System.out.print(num + "  ");
         } 
     }
@@ -46,7 +47,7 @@ public class RecursionProgramming {
         for (int i = 1; i < n; i++) {
             current[i] = previous[i - 1] + previous[i];
         }
-        
+        // return current row
         return current;
     }
 }
