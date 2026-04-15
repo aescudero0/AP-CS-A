@@ -8,40 +8,146 @@ package textfiles;
  *
  * @author AEscudero2026
  */
+
 import java.io.*;
 import java.util.*;
+ 
 public class TextFiles {
-
-    /**
-     * @param args the command line arguments
-     */
-    public static void main(String[] args) {
-        System.out.println("Write (in this order): Name, Email, Graduation Year, and Username ");
-        Scanner scan = new Scanner(System.in);
-        String content = scan.nextLine();
-        String filePath = "Contacts/contacts.txt";
-        String outPath = "TextFiles/contacts.txt";
-        String contentToWrite = content;
-        
-        
-// Write to file
-    try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
-        writer.write(contentToWrite);
-        System.out.println("Successfully wrote to the file.");
-    } catch (IOException e) {
-        System.err.println("An error occurred while writing to the file: " +
-        e.getMessage());
-    }
-// Read from file
-    try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
-        String line;
-        System.out.println("\nReading from the file:");
-    while ((line = reader.readLine()) != null) {
-        System.out.println(line);
-    }
-    } catch (IOException e) {
-        System.err.println("An error occurred while reading from the file: "
-        + e.getMessage());
-        }
-    }
+ 
+   static ArrayList<Contact> contacts = new ArrayList<>();
+   static String filePath = "Contacts/contacts.txt";
+ 
+   public static void main(String[] args) {
+       loadFromFile();
+ 
+       Scanner scan = new Scanner(System.in);
+       boolean valid = true;
+ 
+       while (valid) {
+           System.out.println("\nWhat would you like to do?");
+           System.out.println("A - add a contact");
+           System.out.println("E - order by email");
+           System.out.println("Y - order by grad year");
+           System.out.println("N - order by name");
+           System.out.println("Q - quit");
+ 
+           String action = scan.nextLine();
+ 
+           if (action.equalsIgnoreCase("A")) {
+               System.out.println("Enter Name:");
+               String name = scan.nextLine();
+ 
+               System.out.println("Enter Email:");
+               String email = scan.nextLine();
+ 
+               int year = 0;
+               boolean validYear = false;
+               while (!validYear) {
+                   System.out.println("Enter Graduation Year:");
+                   try {
+                       year = Integer.parseInt(scan.nextLine());
+                       validYear = true;
+                   } catch (NumberFormatException e) {
+                       System.out.println("Invalid Input! Please Enter A Number!");
+                   }
+               }
+ 
+               System.out.println("Enter Username:");
+               String username = scan.nextLine();
+ 
+               Contact c = new Contact(name, email, year, username);
+               contacts.add(c);
+               saveToFile();
+               System.out.println("Contact added.");
+ 
+           } else if (action.equalsIgnoreCase("E")) {
+               contacts.sort((a, b) -> a.email.compareTo(b.email));
+               printContacts();
+ 
+           } else if (action.equalsIgnoreCase("Y")) {
+               contacts.sort((a, b) -> a.gradYear - b.gradYear);
+               printContacts();
+ 
+           } else if (action.equalsIgnoreCase("N")) {
+               contacts.sort((a, b) -> a.name.compareTo(b.name));
+               printContacts();
+ 
+           } else if (action.equalsIgnoreCase("Q")) {
+               valid = false;
+ 
+           } else {
+               System.out.println("Not a valid option, try again.");
+           }
+       }
+   }
+ 
+   static void loadFromFile() {
+       try {
+           File myFile = new File(filePath);
+ 
+           if (!myFile.exists()) {
+               if (myFile.getParentFile() != null) {
+                   myFile.getParentFile().mkdirs();
+               }
+               myFile.createNewFile();
+               System.out.println("Created new file: " + filePath);
+               return;
+           }
+ 
+           Scanner reader = new Scanner(myFile);
+           while (reader.hasNextLine()) {
+               String line = reader.nextLine();
+               String[] data = line.split(",");
+               if (data.length >= 4) {
+                   Contact c = new Contact(
+                       data[0].trim(),
+                       data[1].trim(),
+                       Integer.parseInt(data[2].trim()),
+                       data[3].trim()
+                   );
+                   contacts.add(c);
+               }
+           }
+           reader.close();
+           System.out.println("Loaded " + contacts.size() + " contacts from file.");
+ 
+       } catch (IOException e) {
+           System.out.println("FileSystem Error: " + e.getMessage());
+       }
+   }
+ 
+   static void saveToFile() {
+       try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
+           for (Contact c : contacts) {
+               writer.write(c.toString());
+               writer.newLine();
+           }
+           System.out.println("Successfully saved contacts.");
+       } catch (IOException e) {
+           System.out.println("An error occurred while writing to the file: " + e.getMessage());
+       }
+   }
+ 
+   static void printContacts() {
+       System.out.println("\n--- Contacts ---");
+       for (Contact c : contacts) {
+           System.out.println(c.name + " , " + c.email + " , " + c.gradYear + " , " + c.username);
+       }
+   }
+}
+class Contact {
+   String name;
+   String email;
+   int gradYear;
+   String username;
+ 
+   public Contact(String name, String email, int gradYear, String username) {
+       this.name = name;
+       this.email = email;
+       this.gradYear = gradYear;
+       this.username = username;
+   }
+   public String toString() {
+       return name + "," + email + "," + gradYear + "," + username;
+   }
 }
