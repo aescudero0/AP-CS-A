@@ -1,0 +1,641 @@
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Main.java to edit this template
+ */
+package ghosthunters;
+
+/**
+ *
+ * @author AEscudero2026
+ */
+import java.io.*;
+import java.util.*;
+import javax.sound.sampled.*;
+
+public class GhostHunters {
+    // sound class
+    public void playSound(String soundFileName) {
+    try {
+        File soundFile = new File("src/" + soundFileName);
+           if(soundFile.exists()) {
+                AudioInputStream audioInput = AudioSystem.getAudioInputStream(soundFile);
+                Clip clip = AudioSystem.getClip();
+                clip.open(audioInput);
+                clip.start();
+    } else {
+        System.out.println("File not found");
+}
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+}
+    // create array lists
+    static ArrayList<GhostData> ghosts = new ArrayList<>();
+    static ArrayList<EvidenceType> evidenceTypes = new ArrayList<>();
+    static ArrayList<EvidenceData> evidenceLog = new ArrayList<>();
+
+    // ghost names hardcoded into the game
+    static ArrayList<String> ghostNames = new ArrayList<>(Arrays.asList(
+        "Demon",
+        "Jinn",
+        "Poltergeist",
+        "Banshee"
+    ));
+
+    // rooms hardcoded into the game
+    static ArrayList<String> roomNames = new ArrayList<>(Arrays.asList(
+        "Kitchen",
+        "Living Room",
+        "Kids Bedroom",
+        "Master Bedroom",
+        "Bathroom",
+        "Master Bathroom",
+        "Garage"
+    ));
+
+    // items hardcoded into the game with evidence it can detect
+   
+    static ArrayList<ItemData> allItems = new ArrayList<>(Arrays.asList(
+        new ItemData("Thermometer",        "Freezing Temperatures"),
+        new ItemData("EMF",                "High EMF Levels"),
+        new ItemData("Notebook",           "Ghost Writing"),
+        new ItemData("Night Vision Light", "Ghost Orbs"),
+        new ItemData("Blue Light",         "Handprints"),
+        new ItemData("Sensors",            "Ghost Movement"),
+        new ItemData("Music Box",          "Ghost Activity")
+    ));
+
+    // types of evidence and the item used to detect it
+    static ArrayList<EvidenceType> allEvidenceTypes = new ArrayList<>(Arrays.asList(
+        new EvidenceType("Ghost Orbs",           "Night Vision Light"),
+        new EvidenceType("Freezing Temperatures","Thermometer"),
+        new EvidenceType("High EMF Levels",      "EMF"),
+        new EvidenceType("Ghost Writing",        "Notebook"),
+        new EvidenceType("Handprints",           "Blue Light"),
+        new EvidenceType("Ghost Movement",       "Sensors"),
+        new EvidenceType("Ghost Activity",       "Music Box")
+    ));
+
+    // evidence each ghost can give off
+    static HashMap<String, ArrayList<String>> ghostEvidenceMap = new HashMap<>();
+    static {
+        ghostEvidenceMap.put("Demon",       new ArrayList<>(Arrays.asList(
+            "Ghost Orbs", "Freezing Temperatures", "Ghost Writing")));
+        ghostEvidenceMap.put("Jinn",        new ArrayList<>(Arrays.asList(
+            "High EMF Levels", "Ghost Orbs", "Freezing Temperatures")));
+        ghostEvidenceMap.put("Poltergeist", new ArrayList<>(Arrays.asList(
+            "Ghost Writing", "Handprints", "Ghost Activity")));
+        ghostEvidenceMap.put("Banshee",     new ArrayList<>(Arrays.asList(
+            "Ghost Orbs", "Freezing Temperatures", "Handprints")));
+    }
+
+    
+    // file paths
+    static String ghostFilePath    = "ghosts.txt";
+    static String itemFilePath     = "items.txt";
+    static String evidenceFilePath = "evidence.txt";
+    static String evidenceLogPath  = "evidence_log.txt";
+    static String resultFilePath   = "results.txt";
+
+    // game state
+    static GhostData activeGhost = null;
+    static ArrayList<ItemData> inventory = new ArrayList<>();
+    static ArrayList<EvidenceData> collectedEvidence = new ArrayList<>();
+    static ArrayList<RoomData> rooms = new ArrayList<>();
+    static RoomData currentRoom = null;
+    static RoomData ghostRoom = null;
+    static boolean freezingTempsDetected = false;
+    static int guessesLeft = 3;
+
+    public static void main(String[] args) {
+
+        loadGhostsFromFile();
+        loadItemDescriptionsFromFile();
+        loadEvidenceTypesFromFile();
+
+        buildRooms();
+
+        Scanner scan = new Scanner(System.in);
+
+        System.out.println("\n          WELCOME TO GHOST HUNTERS");
+
+        String chosenName = ghostNames.get(new Random().nextInt(ghostNames.size()));
+        activeGhost = findGhostByName(chosenName);
+
+        assignEvidenceToRooms(activeGhost);
+        setGhostRoom();
+        distributeItems();
+
+        currentRoom = rooms.get(0);
+
+        System.out.println("\nHello Investigator");
+        System.out.println("You push open the creaking front door and step inside the haunted house...");
+        System.out.println("A cold draft sweeps past you. Something is here.");
+
+        boolean valid = true;
+
+        while (valid) {
+
+            if (guessesLeft <= 0) {
+                System.out.println("\nYou have no guesses left!");
+                handleLoss();
+                valid = false;
+                break;
+            }
+
+            System.out.println("\n  Location: " + currentRoom.name
+                    + " | Guesses left: " + guessesLeft);
+            System.out.println("\nWhat would you like to do?");
+            System.out.println("V - visit a room");
+            System.out.println("P - pick up an item");
+            System.out.println("U - use an item");
+            System.out.println("M - check menu");
+            System.out.println("Q - quit");
+
+            String action = scan.nextLine();
+
+            if (action.equalsIgnoreCase("V")) {
+                visitRoom(scan);
+            } else if (action.equalsIgnoreCase("P")) {
+                pickUpItem(scan);
+            } else if (action.equalsIgnoreCase("U")) {
+                useItem(scan);
+            } else if (action.equalsIgnoreCase("M")) {
+                checkMenu(scan);
+            } else if (action.equalsIgnoreCase("Q")) {
+                System.out.println("Quitting investigation");
+                valid = false;
+            } else {
+                System.out.println("Not a valid option, try again.");
+            }
+        }
+    }
+
+    static void buildRooms() {
+        for (String name : roomNames) {
+            rooms.add(new RoomData(name));
+        }
+        System.out.println("Loaded " + rooms.size() + " rooms.");
+    }
+
+    static void assignEvidenceToRooms(GhostData ghost) {
+        ArrayList<String> possibleEvidence = ghostEvidenceMap.get(ghost.name);
+        if (possibleEvidence == null) return;
+
+        ArrayList<RoomData> shuffledRooms = new ArrayList<>(rooms);
+        Collections.shuffle(shuffledRooms);
+
+        for (int i = 0; i < possibleEvidence.size() && i < shuffledRooms.size(); i++) {
+            shuffledRooms.get(i).evidenceType = possibleEvidence.get(i);
+            shuffledRooms.get(i).hasEvidence = true;
+        }
+    }
+
+    static void setGhostRoom() {
+        ghostRoom = null;
+        for (RoomData room : rooms) {
+            if (room.evidenceType.equalsIgnoreCase("Freezing Temperatures")) {
+                ghostRoom = room;
+                ghostRoom.isGhostRoom = true;
+                break;
+            }
+        }
+    }
+
+    static GhostData findGhostByName(String name) {
+        for (GhostData g : ghosts) {
+            if (g.name.equalsIgnoreCase(name)) {
+                return g;
+            }
+        }
+        return new GhostData(name, "No description loaded.", "See ghosts.txt");
+    }
+
+    static void visitRoom(Scanner scan) {
+        System.out.println("\nAvailable rooms:");
+        for (int i = 0; i < rooms.size(); i++) {
+            System.out.println((i + 1) + " - " + rooms.get(i).name);
+        }
+        System.out.print("Enter room number: ");
+        try {
+            int choice = Integer.parseInt(scan.nextLine().trim());
+            if (choice >= 1 && choice <= rooms.size()) {
+                currentRoom = rooms.get(choice - 1);
+                System.out.println("\n  Room: " + currentRoom.name);
+
+                if (currentRoom.isGhostRoom && freezingTempsDetected) {
+                    System.out.println("  The air in here is ice cold. This feels like the center of the haunting.");
+                }
+
+                if (!currentRoom.items.isEmpty()) {
+                    System.out.print("Items here: ");
+                    for (int i = 0; i < currentRoom.items.size(); i++) {
+                        System.out.print(currentRoom.items.get(i).name);
+                        if (i < currentRoom.items.size() - 1) System.out.print(", ");
+                    }
+                    System.out.println();
+                } else {
+                    System.out.println("No items visible here");
+                }
+                if (currentRoom.hasEvidence && !currentRoom.evidenceCollected) {
+                    System.out.println("Something feels off, there may be evidence here");
+                }
+            } else {
+                System.out.println("Invalid room number.");
+            }
+        } catch (NumberFormatException e) {
+            System.out.println("Invalid input! Please enter a number.");
+        }
+    }
+
+    static void pickUpItem(Scanner scan) {
+        if (currentRoom.items.isEmpty()) {
+            System.out.println("No items to pick up here.");
+            return;
+        }
+        System.out.println("\nItems in room:");
+        for (int i = 0; i < currentRoom.items.size(); i++) {
+            System.out.println((i + 1) + " - " + currentRoom.items.get(i).name);
+        }
+        System.out.print("Pick up which item: ");
+        try {
+            int choice = Integer.parseInt(scan.nextLine().trim());
+            if (choice >= 1 && choice <= currentRoom.items.size()) {
+                ItemData chosen = currentRoom.items.get(choice - 1);
+                currentRoom.items.remove(chosen);
+                inventory.add(chosen);
+                System.out.println("Picked up: " + chosen.name);
+            } else {
+                System.out.println("Invalid item number.");
+            }
+        } catch (NumberFormatException e) {
+            System.out.println("Invalid input! Please enter a number.");
+        }
+    }
+
+    static void useItem(Scanner scan) {
+        if (inventory.isEmpty()) {
+            System.out.println("Your inventory is empty.");
+            return;
+        }
+        System.out.println("\nYour inventory:");
+        for (int i = 0; i < inventory.size(); i++) {
+            System.out.println((i + 1) + " - " + inventory.get(i).name);
+        }
+        System.out.print("Use which item: ");
+        try {
+            int choice = Integer.parseInt(scan.nextLine().trim());
+            if (choice >= 1 && choice <= inventory.size()) {
+                ItemData chosen = inventory.get(choice - 1);
+                System.out.println("You use the " + chosen.name + ". " + chosen.use);
+                if (currentRoom.hasEvidence && !currentRoom.evidenceCollected) {
+                    if (chosen.detectsEvidence.equalsIgnoreCase(currentRoom.evidenceType)) {
+                        System.out.println("The " + chosen.name + " picks something up!");
+                        collectEvidenceWithItem(chosen);
+                    } else {
+                        System.out.println("Nothing detected in this room with the " + chosen.name);
+                    }
+                } else {
+                    System.out.println("Nothing to detect here.");
+                }
+            } else {
+                System.out.println("Invalid item number.");
+            }
+        } catch (NumberFormatException e) {
+            System.out.println("Invalid input! Please enter a number.");
+        }
+    }
+
+    static void collectEvidenceWithItem(ItemData item) {
+        currentRoom.evidenceCollected = true;
+        EvidenceData ev = new EvidenceData(currentRoom.evidenceType, currentRoom.name);
+        collectedEvidence.add(ev);
+        evidenceLog.add(ev);
+        System.out.println("Evidence collected: " + ev.type + " (found in " + ev.room + ")");
+        if (ev.type.equalsIgnoreCase("Freezing Temperatures")) {
+            freezingTempsDetected = true;
+        }
+        saveEvidenceToFile();
+    }
+
+    static void analyzeEvidence() {
+        if (collectedEvidence.isEmpty()) {
+            System.out.println("No evidence to analyze.");
+            return;
+        }
+        System.out.println("\nAnalyzing collected evidence");
+        for (EvidenceData ev : collectedEvidence) {
+            System.out.println("  [" + ev.type + "] found in " + ev.room
+                    + " - This clue points toward a specific ghost type.");
+        }
+    }
+
+    static void checkMenu(Scanner scan) {
+        boolean inMenu = true;
+        while (inMenu) {
+            System.out.println("\n               GHOST HUNTERS MENU");
+            System.out.println("1 - Ghost Types and Descriptions");
+            System.out.println("2 - Analyze Evidence");
+            System.out.println("3 - Show Inventory");
+            System.out.println("4 - Guess Ghost Type");
+            System.out.println("5 - Return to Investigation");
+            System.out.print("\nChoose option (1-5): ");
+            String choice = scan.nextLine();
+
+            if (choice.equals("1")) {
+                System.out.println("\n--- Ghost Types and Descriptions ---");
+                if (ghosts.isEmpty()) {
+                    System.out.println("  (No ghost data loaded - check ghosts.txt is in the project root)");
+                    for (String name : ghostNames) {
+                        System.out.println("  - " + name);
+                    }
+                } else {
+                    for (GhostData g : ghosts) {
+                        System.out.println("\n  [" + g.name + "]");
+                        System.out.println("  Description: " + g.description);
+                        System.out.println("  Evidence:    " + g.evidenceClues);
+                    }
+                }
+
+            } else if (choice.equals("2")) {
+                analyzeEvidence();
+
+            } else if (choice.equals("3")) {
+                showInventory();
+
+            } else if (choice.equals("4")) {
+                System.out.print("Enter your ghost guess: ");
+                String guess = scan.nextLine();
+                if (guess.equalsIgnoreCase(activeGhost.name)) {
+                    handleCorrectGuess();
+                    inMenu = false;
+                } else {
+                    boolean stillPlaying = handleIncorrectGuess();
+                    if (!stillPlaying) inMenu = false;
+                }
+
+            } else if (choice.equals("5")) {
+                System.out.println("Returning to investigation");
+                inMenu = false;
+
+            } else {
+                System.out.println("Not a valid option, try again.");
+            }
+        }
+    }
+
+    static void showInventory() {
+        if (inventory.isEmpty()) {
+            System.out.println("  Inventory: (empty)");
+        } else {
+            System.out.print("  Inventory: ");
+            for (int i = 0; i < inventory.size(); i++) {
+                System.out.print(inventory.get(i).name);
+                if (i < inventory.size() - 1) System.out.print(", ");
+            }
+            System.out.println();
+        }
+    }
+
+    static void handleCorrectGuess() {
+        System.out.println("\n" + "=".repeat(50));
+        System.out.println("  CORRECT! You identified the ghost!");
+        System.out.println("  The " + activeGhost.name + " is banished. The house is safe.");
+        System.out.println("=".repeat(50));
+        saveResultToFile("WIN", activeGhost.name);
+        System.out.println("\nThank you for playing Ghost Hunters Investigator! You saved the day!");
+    }
+
+    static boolean handleIncorrectGuess() {
+        guessesLeft--;
+        System.out.println("\nWrong guess! Guesses remaining: " + guessesLeft);
+        if (guessesLeft <= 0) {
+            handleLoss();
+            return false;
+        }
+        return true;
+    }
+
+    static void handleLoss() {
+        System.out.println("\nThe ghost was a " + activeGhost.name + ".");
+        System.out.println(activeGhost.description);
+        saveResultToFile("LOSS", activeGhost.name);
+        System.out.println("\nGame over. The ghost claims another victim");
+    }
+
+    static void distributeItems() {
+        ArrayList<ItemData> itemCopies = new ArrayList<>(allItems);
+        Collections.shuffle(itemCopies);
+        Collections.shuffle(rooms);
+        for (int i = 0; i < itemCopies.size(); i++) {
+            rooms.get(i % rooms.size()).items.add(itemCopies.get(i));
+        }
+    }
+
+    // file IO
+
+    
+    static void loadGhostsFromFile() {
+        try {
+            File myFile = new File(ghostFilePath);
+
+            if (!myFile.exists()) {
+                System.out.println("ghosts.txt not found. Place it in the project root folder.");
+                return;
+            }
+
+            Scanner reader = new Scanner(myFile);
+            while (reader.hasNextLine()) {
+                String line = reader.nextLine().trim();
+                if (line.isEmpty()) continue;
+
+                String[] parts = line.split(" - ", 2);
+                if (parts.length == 2) {
+                    String name        = parts[0].trim();
+                    String evidenceStr = parts[1].trim();
+                    GhostData g = new GhostData(name, "A paranormal entity.", evidenceStr);
+                    ghosts.add(g);
+                }
+            }
+            reader.close();
+            System.out.println("Loaded " + ghosts.size() + " ghosts from file.");
+
+        } catch (IOException e) {
+            System.out.println("FileSystem Error: " + e.getMessage());
+        }
+    }
+
+    // items.txt format
+    static void loadItemDescriptionsFromFile() {
+        try {
+            File myFile = new File(itemFilePath);
+            if (!myFile.exists()) {
+                System.out.println("items.txt not found. Item descriptions will be generic.");
+                return;
+            }
+            Scanner reader = new Scanner(myFile);
+            while (reader.hasNextLine()) {
+                String line = reader.nextLine().trim();
+                if (line.isEmpty()) continue;
+                String[] data = line.split(",", 2);
+                if (data.length >= 2) {
+                    for (ItemData item : allItems) {
+                        if (item.name.equalsIgnoreCase(data[0].trim())) {
+                            item.use = data[1].trim();
+                        }
+                    }
+                }
+            }
+            reader.close();
+            System.out.println("Loaded item descriptions from file.");
+
+        } catch (IOException e) {
+            System.out.println("FileSystem Error: " + e.getMessage());
+        }
+    }
+
+    // evidence.txt format
+    static void loadEvidenceTypesFromFile() {
+        try {
+            File myFile = new File(evidenceFilePath);
+            if (!myFile.exists()) {
+                System.out.println("evidence.txt not found. Evidence descriptions will be generic.");
+                return;
+            }
+            Scanner reader = new Scanner(myFile);
+            while (reader.hasNextLine()) {
+                String line = reader.nextLine().trim();
+                if (line.isEmpty()) continue;
+                String[] data = line.split(",", 2);
+                if (data.length >= 2) {
+                    for (EvidenceType et : allEvidenceTypes) {
+                        if (et.name.equalsIgnoreCase(data[0].trim())) {
+                            et.description = data[1].trim();
+                        }
+                    }
+                }
+            }
+            reader.close();
+            System.out.println("Loaded evidence descriptions from file.");
+
+        } catch (IOException e) {
+            System.out.println("FileSystem Error: " + e.getMessage());
+        }
+    }
+
+    // saves to evidence_log.txt so evidence.txt descriptions are not corrupted
+    static void saveEvidenceToFile() {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(evidenceLogPath, true))) {
+            EvidenceData latest = evidenceLog.get(evidenceLog.size() - 1);
+            writer.write(latest.toString());
+            writer.newLine();
+            System.out.println("Evidence log saved.");
+        } catch (IOException e) {
+            System.out.println("An error occurred while writing to the file: " + e.getMessage());
+        }
+    }
+
+    static void saveResultToFile(String result, String ghostType) {
+        try {
+            File myFile = new File(resultFilePath);
+            if (!myFile.exists()) {
+                myFile.createNewFile();
+            }
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(resultFilePath, true))) {
+                writer.write(result + "," + ghostType);
+                writer.newLine();
+                System.out.println("Result saved to file.");
+            }
+        } catch (IOException e) {
+            System.out.println("An error occurred while writing to the file: " + e.getMessage());
+        }
+    }
+}
+
+// data classes
+
+class GhostData {
+    String name;
+    String description;
+    String evidenceClues;
+
+    public GhostData(String name, String description, String evidenceClues) {
+        this.name = name;
+        this.description = description;
+        this.evidenceClues = evidenceClues;
+    }
+
+    public String toString() {
+        return name + "," + description + "," + evidenceClues;
+    }
+}
+
+class ItemData {
+    String name;
+    String use;
+    String detectsEvidence;
+
+    public ItemData(String name, String detectsEvidence) {
+        this.name = name;
+        this.detectsEvidence = detectsEvidence;
+        this.use = "No description loaded yet.";
+    }
+
+    public String toString() {
+        return name + "," + use;
+    }
+}
+
+class EvidenceType {
+    String name;
+    String detectedBy;
+    String description;
+
+    public EvidenceType(String name, String detectedBy) {
+        this.name = name;
+        this.detectedBy = detectedBy;
+        this.description = "No description loaded yet.";
+    }
+
+    public String toString() {
+        return name + "," + description;
+    }
+}
+
+class RoomData {
+    String name;
+    String evidenceType;
+    boolean hasEvidence;
+    boolean evidenceCollected = false;
+    boolean isGhostRoom = false;
+    ArrayList<ItemData> items = new ArrayList<>();
+
+    public RoomData(String name) {
+        this.name = name;
+        this.evidenceType = "";
+        this.hasEvidence = false;
+    }
+
+    public String toString() {
+        return name + "," + evidenceType;
+    }
+}
+
+class EvidenceData {
+    String type;
+    String room;
+
+    public EvidenceData(String type, String room) {
+        this.type = type;
+        this.room = room;
+    }
+
+    public String toString() {
+        return room + "," + type;
+    }
+}
+
+
+
+
+
